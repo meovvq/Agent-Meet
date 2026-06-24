@@ -1,0 +1,51 @@
+# Agent Meet 部署配置
+#
+# 本地开发：直接运行 uvicorn，PostgreSQL/Redis 复用 interview-guide 的容器
+#   cd D:\vscode\project\interview-guide && docker compose -f docker-compose.dev.yml up -d postgres redis
+#   uvicorn app.main:app --reload
+#
+# 全容器部署：docker compose up -d
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: agent-meet-app
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:123456@interview-postgres:5432/agent_meet
+      REDIS_URL: redis://interview-redis:6379/2
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.deepseek.com/v1}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-deepseek-chat}
+      EMBEDDING_BASE_URL: ${EMBEDDING_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}
+      EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:-}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-v3}
+      EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:-1024}
+      AGENT_MODE_ENABLED: ${AGENT_MODE_ENABLED:-true}
+      AGENT_MAX_REASONING_STEPS: ${AGENT_MAX_REASONING_STEPS:-3}
+      AGENT_MEMORY_ENABLED: ${AGENT_MEMORY_ENABLED:-true}
+      AGENT_PLANNING_ENABLED: ${AGENT_PLANNING_ENABLED:-true}
+      INTERVIEW_FOLLOW_UP_MAX: ${INTERVIEW_FOLLOW_UP_MAX:-2}
+      INTERVIEW_HINT_ENABLED: ${INTERVIEW_HINT_ENABLED:-true}
+      INTERVIEW_PASS_SCORE: ${INTERVIEW_PASS_SCORE:-7}
+      INTERVIEW_FOLLOW_UP_SCORE: ${INTERVIEW_FOLLOW_UP_SCORE:-4}
+    networks:
+      - interview-guide_default
+    depends_on:
+      - external-deps
+    restart: unless-stopped
+
+  # 占位服务：确保 agent-meet 加入 interview-guide 的外部网络
+  external-deps:
+    image: busybox
+    container_name: agent-meet-deps-check
+    command: echo "Dependencies ready"
+    networks:
+      - interview-guide_default
+
+networks:
+  interview-guide_default:
+    external: true

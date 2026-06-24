@@ -1,0 +1,24 @@
+# Input Data
+请生成共 {{ question_count }} 个主问题。
+每个主问题都必须额外生成 {{ follow_up_count }} 个追问。
+
+## 难度级别
+{{ difficulty_description }}
+
+## 面试方向
+{{ skill_name }}（{{ skill_description }}）
+
+## 问题分布要求
+| 方向 | 数量 | 说明 |
+|------|------|------|
+{{ allocation_table }}
+
+## 已考知识点（避免重复）
+{{ historical_section }}
+
+## 参考题库（references）
+{{ reference_section }}
+
+## 输出要求
+- questions 数组必须包含恰好 {{ question_count }} 个元素
+- 每个主问题必须包含 topicSummary 字段：10 字以内的知识点摘要

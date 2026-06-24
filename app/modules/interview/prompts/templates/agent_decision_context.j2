@@ -1,0 +1,29 @@
+# 当前面试状态
+以下是当前面试的完整上下文，请基于此做出决策。
+
+## 题目信息
+- **当前题目** ({{ question_index + 1 }}/{{ total_questions }}): {{ question }}
+- **分类**: {{ category }}
+- **是否追问**: {% if is_follow_up %}是{% else %}否{% endif %}
+
+## 候选人答案
+{{ answer }}
+
+## 评估结果
+- **分数**: {{ score }}/10
+- **反馈**: {{ feedback }}
+
+## 面试上下文
+- **追问次数**: {{ follow_up_count }}
+- **最近分数**: {{ recent_scores }}
+- **难度调整因子**: {{ difficulty_adj }}
+- **连续高分**: {{ consecutive_high }}
+- **连续低分**: {{ consecutive_low }}
+
+## 候选人画像
+{{ profile_str }}
+
+## 面试策略
+{{ strategy_str }}
+
+请根据以上信息，决定下一步行动。
