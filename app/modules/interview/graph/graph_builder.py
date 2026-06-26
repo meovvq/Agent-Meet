@@ -309,10 +309,13 @@ def build_workflow_graph() -> StateGraph:
     graph.add_edge(START, "present_question")
     graph.add_conditional_edges(
         "present_question",
+        #条件判断与路由映射
         lambda s: "generate_report" if s.get("action") == "done" else "wait_for_answer",
         {"wait_for_answer": "wait_for_answer", "generate_report": "generate_report"},
     )
+    #直接边，第一步直走出题-答题-打分
     graph.add_edge("wait_for_answer", "evaluate_answer")
+    #条件边
     graph.add_conditional_edges("evaluate_answer", workflow_route_decision, {
         "save_and_advance": "save_and_advance",
         "generate_follow_up": "generate_follow_up",
@@ -367,6 +370,7 @@ def build_agent_graph() -> StateGraph:
 
     graph.add_conditional_edges(
         "present_question",
+        #状态为done则输出报告,否则继续等待回答
         lambda s: "generate_report" if s.get("action") == "done" else "wait_for_answer",
         {"wait_for_answer": "wait_for_answer", "generate_report": "generate_report"},
     )

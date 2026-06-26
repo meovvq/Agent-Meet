@@ -14,6 +14,7 @@ import logging
 import re
 
 from openai import AsyncOpenAI
+from openai.types.chat import ChatCompletionMessage
 
 from app.config import settings
 
@@ -75,7 +76,7 @@ async def chat_completion_with_tools(
     temperature: float = 0.7,
     history: list[dict] | None = None,
     max_tokens: int = 8192,
-):
+) -> ChatCompletionMessage:
     """调用 LLM 并支持 function calling
 
     与 chat_completion 的区别：

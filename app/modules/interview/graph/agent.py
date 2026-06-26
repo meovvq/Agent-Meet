@@ -12,6 +12,8 @@ Agent 在每一步可以：
 import json
 import logging
 
+from openai.types.chat import ChatCompletionMessageFunctionToolCall
+
 from app.common.llm_client import chat_completion_with_tools
 from app.common.prompt_loader import render_prompt
 from app.modules.interview.graph.state import AgentState
@@ -60,9 +62,13 @@ async def agent_route_decision(state: AgentState) -> str:
     idx = state.get("current_index", 0)
     questions = state.get("questions", [])
 
+    #如果所有题目完成，直接生成报告
     if idx >= len(questions):
         return "generate_report"
 
+     # q = questions[idx]：获取当前题目
+     # max_steps = state.get("max_reasoning_steps", 3)：获取 ReAct 循环的最大步数（默认 3）
+     # history = state.get("agent_history", [])：获取 Agent 的推理历史
     q = questions[idx]
     max_steps = state.get("max_reasoning_steps", 3)
     history = state.get("agent_history", [])
@@ -100,10 +106,10 @@ async def agent_route_decision(state: AgentState) -> str:
             return "save_and_advance"
 
         # 有 tool call → 执行工具
-        tool_call = response.tool_calls[0]
-        action = tool_call.function.name
-        arguments = json.loads(tool_call.function.arguments)
-        thought = response.content or f"调用 {action}"
+        tool_call: ChatCompletionMessageFunctionToolCall = response.tool_calls[0]  # 类型注解，IDE 可以正确推断
+        action: str = tool_call.function.name  # 工具名称（如 "generate_follow_up"）
+        arguments: dict = json.loads(tool_call.function.arguments)  # 工具参数（JSON 字符串转字典）
+        thought: str = response.content or f"调用 {action}"  # LLM 的思考内容
 
         log.info("Agent 选择工具: %s, 参数: %s", action, json.dumps(arguments, ensure_ascii=False))
 
