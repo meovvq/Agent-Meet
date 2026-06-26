@@ -1,12 +1,44 @@
 # Agent Meet 部署配置
 #
-# 本地开发：直接运行 uvicorn，PostgreSQL/Redis 复用 interview-guide 的容器
-#   cd D:\vscode\project\interview-guide && docker compose -f docker-compose.dev.yml up -d postgres redis
+# 本地开发：启动独立的 PostgreSQL/Redis 容器
+#   docker compose -f docker-compose.dev.yml up -d
 #   uvicorn app.main:app --reload
 #
 # 全容器部署：docker compose up -d
 
 services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: agent-meet-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: "123456"
+      POSTGRES_DB: agent_meet
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5435:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7
+    container_name: agent-meet-redis
+    ports:
+      - "6382:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
   app:
     build:
       context: .
@@ -15,8 +47,8 @@ services:
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: postgresql+asyncpg://postgres:123456@interview-postgres:5432/agent_meet
-      REDIS_URL: redis://interview-redis:6379/2
+      DATABASE_URL: postgresql+asyncpg://postgres:123456@postgres:5432/agent_meet
+      REDIS_URL: redis://redis:6379/0
       LLM_BASE_URL: ${LLM_BASE_URL:-https://api.deepseek.com/v1}
       LLM_API_KEY: ${LLM_API_KEY:-}
       LLM_MODEL: ${LLM_MODEL:-deepseek-chat}
@@ -32,20 +64,13 @@ services:
       INTERVIEW_HINT_ENABLED: ${INTERVIEW_HINT_ENABLED:-true}
       INTERVIEW_PASS_SCORE: ${INTERVIEW_PASS_SCORE:-7}
       INTERVIEW_FOLLOW_UP_SCORE: ${INTERVIEW_FOLLOW_UP_SCORE:-4}
-    networks:
-      - interview-guide_default
     depends_on:
-      - external-deps
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: unless-stopped
 
-  # 占位服务：确保 agent-meet 加入 interview-guide 的外部网络
-  external-deps:
-    image: busybox
-    container_name: agent-meet-deps-check
-    command: echo "Dependencies ready"
-    networks:
-      - interview-guide_default
-
-networks:
-  interview-guide_default:
-    external: true
+volumes:
+  postgres_data:
+  redis_data:
