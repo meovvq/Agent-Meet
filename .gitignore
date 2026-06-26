@@ -24,9 +24,11 @@ env/
 logs/
 
 # Storage (runtime data)
-storage/*.json
-storage/*.db
-!storage/.gitkeep
+storage/
+
+# Markdown docs and skill configs (not tracked)
+*.md
+skills/
 
 # OS
 .DS_Store
