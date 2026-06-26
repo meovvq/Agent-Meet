@@ -1,57 +1,101 @@
-# Agent Meet 启动脚本
-# 用法：.\start.ps1
+# Agent Meet startup script
+# Usage: .\start.ps1
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Continue"
 
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host " Agent Meet - AI 模拟面试系统启动" -ForegroundColor Cyan
+Write-Host " Agent Meet - AI Interview System" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 
-# 1. 检查并启动 PostgreSQL + Redis
-Write-Host "`n[1/4] 检查基础设施服务..." -ForegroundColor Yellow
+# 1. Check Docker
+Write-Host ""
+Write-Host "[1/4] Checking Docker..." -ForegroundColor Yellow
 
-$postgres = docker ps --filter "name=interview-postgres" --filter "status=running" --format "{{.Names}}" 2>$null
-$redis = docker ps --filter "name=interview-redis" --filter "status=running" --format "{{.Names}}" 2>$null
-
-if ($postgres -and $redis) {
-    Write-Host "  PostgreSQL 和 Redis 已在运行" -ForegroundColor Green
-} else {
-    Write-Host "  正在启动 PostgreSQL 和 Redis..." -ForegroundColor Yellow
-    Push-Location D:\vscode\project\interview-guide
-    docker compose -f docker-compose.dev.yml up -d postgres redis
-    Pop-Location
-    Start-Sleep -Seconds 3
-    Write-Host "  基础设施启动完成" -ForegroundColor Green
+$dockerRunning = $false
+try {
+    docker info 2>&1 | Out-Null
+    $dockerRunning = $true
+} catch {
+    $dockerRunning = $false
 }
 
-# 2. 检查 .env
-Write-Host "`n[2/4] 检查环境配置..." -ForegroundColor Yellow
+if (-not $dockerRunning) {
+    Write-Host "  Docker not running, starting Docker Desktop..." -ForegroundColor Yellow
+    Start-Process "C:\Program Files\Docker\Docker\Docker Desktop.exe"
+    Write-Host "  Waiting for Docker (max 60s)..." -ForegroundColor Yellow
+    $timeout = 60
+    while ($timeout -gt 0) {
+        Start-Sleep -Seconds 2
+        $timeout -= 2
+        $check = docker info 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            $dockerRunning = $true
+            break
+        }
+    }
+}
+
+if ($dockerRunning) {
+    Write-Host "  Docker is ready" -ForegroundColor Green
+} else {
+    Write-Host "  Docker startup timeout" -ForegroundColor Red
+    exit 1
+}
+
+# 2. Start PostgreSQL + Redis
+Write-Host ""
+Write-Host "[2/4] Starting PostgreSQL and Redis..." -ForegroundColor Yellow
+
+$postgres = (docker ps --filter "name=agent-meet-postgres" --filter "status=running" --format "{{.Names}}" 2>&1) | Out-String
+$redis = (docker ps --filter "name=agent-meet-redis" --filter "status=running" --format "{{.Names}}" 2>&1) | Out-String
+
+if ($postgres -and $redis) {
+    Write-Host "  PostgreSQL and Redis already running" -ForegroundColor Green
+} else {
+    docker compose -f docker-compose.dev.yml up -d
+    Write-Host "  Waiting for services..." -ForegroundColor Yellow
+
+    # Wait for PostgreSQL
+    for ($i = 0; $i -lt 30; $i++) {
+        $result = docker exec agent-meet-postgres pg_isready -U postgres 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "  PostgreSQL is ready" -ForegroundColor Green
+            break
+        }
+        Start-Sleep -Seconds 1
+    }
+
+    # Wait for Redis
+    for ($i = 0; $i -lt 15; $i++) {
+        $result = docker exec agent-meet-redis redis-cli ping 2>&1
+        if ($result -match "PONG") {
+            Write-Host "  Redis is ready" -ForegroundColor Green
+            break
+        }
+        Start-Sleep -Seconds 1
+    }
+}
+
+# 3. Check .env
+Write-Host ""
+Write-Host "[3/4] Checking .env config..." -ForegroundColor Yellow
 
 if (-not (Test-Path ".env")) {
-    Write-Host "  .env 文件不存在，请先从 .env.example 复制并填入 API Key" -ForegroundColor Red
+    Write-Host "  .env file not found, copy from .env.example first" -ForegroundColor Red
     Write-Host "  copy .env.example .env" -ForegroundColor DarkGray
     exit 1
 } else {
-    Write-Host "  .env 配置文件就绪" -ForegroundColor Green
+    Write-Host "  .env is ready" -ForegroundColor Green
 }
 
-# 3. 检查虚拟环境
-Write-Host "`n[3/4] 检查 Python 环境..." -ForegroundColor Yellow
+# 4. Start app
+Write-Host ""
+Write-Host "[4/4] Starting Agent Meet..." -ForegroundColor Yellow
+Write-Host "  URL: http://localhost:8000" -ForegroundColor Cyan
+Write-Host "  API Docs: http://localhost:8000/docs" -ForegroundColor Cyan
+Write-Host "  Press Ctrl+C to stop" -ForegroundColor DarkGray
+Write-Host ""
 
-if (-not (Test-Path ".venv\Scripts\python.exe")) {
-    Write-Host "  虚拟环境不存在，正在创建..." -ForegroundColor Yellow
-    python -m venv .venv
-    .venv\Scripts\pip install -e ".[dev]" -q
-    Write-Host "  虚拟环境创建完成" -ForegroundColor Green
-} else {
-    Write-Host "  虚拟环境就绪" -ForegroundColor Green
-}
-
-# 4. 启动应用
-Write-Host "`n[4/4] 启动 Agent Meet 应用..." -ForegroundColor Yellow
-Write-Host "  访问地址: http://localhost:8000" -ForegroundColor Cyan
-Write-Host "  API 文档: http://localhost:8000/docs" -ForegroundColor Cyan
-Write-Host "  按 Ctrl+C 停止`n" -ForegroundColor DarkGray
-
-.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-#uvicorn app.main:app
+uvicorn app.main:app --reload --reload-exclude ".venv"
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+# .\start.ps1
