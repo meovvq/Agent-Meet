@@ -12,10 +12,12 @@
 import json
 import logging
 import re
+import time
 
 from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletionMessage
 
+from app.common.metrics import LLMCallRecord, _detect_caller, record_call
 from app.config import settings
 
 log = logging.getLogger(__name__)
@@ -52,16 +54,31 @@ async def chat_completion(
         messages.extend(history)
     messages.append({"role": "user", "content": user_prompt})
 
+    t0 = time.monotonic()
     resp = await chat_client.chat.completions.create(
         model=used_model,
         messages=messages,
         temperature=temperature,
         max_tokens=max_tokens,
     )
+    latency_ms = (time.monotonic() - t0) * 1000
 
     result = resp.choices[0].message.content or ""
-    log.info("LLM 响应: model=%s, tokens=%d, len=%d",
-             used_model, resp.usage.total_tokens if resp.usage else 0, len(result))
+    usage = resp.usage
+    total_tokens = usage.total_tokens if usage else 0
+    log.info("LLM 响应: model=%s, tokens=%d, len=%d, latency=%.0fms",
+             used_model, total_tokens, len(result), latency_ms)
+
+    # 记录指标
+    record_call(LLMCallRecord(
+        caller=_detect_caller(),
+        model=used_model,
+        prompt_tokens=usage.prompt_tokens if usage else 0,
+        completion_tokens=usage.completion_tokens if usage else 0,
+        total_tokens=total_tokens,
+        latency_ms=latency_ms,
+    ))
+
     return result
 
 
@@ -104,13 +121,27 @@ async def chat_completion_with_tools(
         kwargs["tools"] = tools
         kwargs["tool_choice"] = tool_choice
 
+    t0 = time.monotonic()
     resp = await chat_client.chat.completions.create(**kwargs)
+    latency_ms = (time.monotonic() - t0) * 1000
     message = resp.choices[0].message
 
-    log.info("LLM 工具响应: model=%s, tokens=%d, tool_calls=%d",
-             used_model,
-             resp.usage.total_tokens if resp.usage else 0,
-             len(message.tool_calls) if message.tool_calls else 0)
+    usage = resp.usage
+    total_tokens = usage.total_tokens if usage else 0
+    log.info("LLM 工具响应: model=%s, tokens=%d, tool_calls=%d, latency=%.0fms",
+             used_model, total_tokens,
+             len(message.tool_calls) if message.tool_calls else 0, latency_ms)
+
+    # 记录指标
+    record_call(LLMCallRecord(
+        caller=_detect_caller(),
+        model=used_model,
+        prompt_tokens=usage.prompt_tokens if usage else 0,
+        completion_tokens=usage.completion_tokens if usage else 0,
+        total_tokens=total_tokens,
+        latency_ms=latency_ms,
+    ))
+
     return message
 
 

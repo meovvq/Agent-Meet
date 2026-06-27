@@ -23,6 +23,7 @@ async def start_interview(req: StartInterviewRequest):
 
     questions 为可选：不传时自动调用出题引擎根据 skill_id 生成。
     """
+    #传入题目，则直接用
     questions = req.questions
 
     # 如果没有传入题目，自动调用出题引擎

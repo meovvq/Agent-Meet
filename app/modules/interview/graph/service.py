@@ -10,6 +10,7 @@ from typing import Any
 
 from langgraph.types import Command
 
+from app.common.metrics import finish_session_trace, get_global_metrics, start_session_trace
 from app.modules.interview.graph.graph_builder import agent_graph, workflow_graph
 from app.modules.interview.graph.state import AgentState
 
@@ -73,8 +74,16 @@ class InterviewGraphService:
             "consecutive_low": 0,
         }
 
+        # 启动会话 Trace
+        start_session_trace(session_id)
+
         config = {"configurable": {"thread_id": session_id}}
         result = await self.graph.ainvoke(initial_state, config=config)
+
+        # 如果图直接结束（无题目），立即输出 Trace
+        if result.get("done"):
+            finish_session_trace(session_id)
+
         return self._extract_question_response(result)
 
     async def submit_answer(self, session_id: str, answer: str) -> dict[str, Any]:
@@ -84,6 +93,16 @@ class InterviewGraphService:
         """
         config = {"configurable": {"thread_id": session_id}}
         result = await self.graph.ainvoke(Command(resume=answer), config=config)
+
+        # 面试结束时输出 Trace 摘要
+        if result.get("done"):
+            trace = finish_session_trace(session_id)
+            if trace:
+                metrics = get_global_metrics()
+                log.info("[trace:%s] 全局 LLM 指标: %s", session_id,
+                         json.dumps(metrics, ensure_ascii=False))
+
+    #传到前端-第一题
         return self._extract_response(result)
 
     # ========== 响应提取 ==========

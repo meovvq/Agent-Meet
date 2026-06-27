@@ -368,6 +368,8 @@ def build_agent_graph() -> StateGraph:
     graph.add_edge("load_memory", "plan_strategy")
     graph.add_edge("plan_strategy", "present_question")
 
+    # Agent 图的核心区别：present_question → wait_for_answer → evaluate_answer → update_agent_context → agent_route_decision
+    #在这个方法下，只要到了这个节点，就必须按照这个模块内显示声明的路径来走；只要走到了"present_question"，下一步一定是"generate_report"/"wait_for_answer"
     graph.add_conditional_edges(
         "present_question",
         #状态为done则输出报告,否则继续等待回答

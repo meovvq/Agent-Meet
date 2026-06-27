@@ -45,7 +45,8 @@ def interview_tool(name: str, description: str):
         return func
     return decorator
 
-
+#此方法为格式工厂，把 Python 函数签名翻译成 OpenAI function calling 要求的 JSON Schema 格式；
+# 所有实现@interview_tool注解的方法框架自动生成 OpenAI function calling 需要的 JSON Schema，不用手写；
 def _build_parameters_schema(sig: inspect.Signature, skip_params: set[str] = None) -> dict:
     """从函数签名生成 OpenAI function calling parameters schema"""
     skip_params = skip_params or set()

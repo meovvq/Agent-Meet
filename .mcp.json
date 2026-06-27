@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "agent-meet": {
+      "command": "python",
+      "args": ["-m", "app.mcp.server"],
+      "cwd": "${workspaceFolder}"
+    }
+  }
+}
